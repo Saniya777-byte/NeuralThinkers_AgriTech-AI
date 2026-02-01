@@ -2,6 +2,15 @@ import streamlit as st
 import sqlite3
 import hashlib
 from streamlit_js_eval import get_geolocation
+<<<<<<< Updated upstream
+=======
+from farmer_dashboard import show_farmer_dashboard
+from dotenv import load_dotenv
+
+load_dotenv()
+
+st.set_page_config(page_title="AgriTech AI - Farmer Dashboard", layout="wide", page_icon="🌾")
+>>>>>>> Stashed changes
 
 
 def connect_db():
@@ -79,7 +88,7 @@ def login_page():
         st.rerun()
 
 
-@st.dialog("📍 Location Permission Request")
+@st.dialog("Location Permission Request")
 def location_alert():
     st.write(
         "To provide accurate weather, soil analytics, and crop suggestions, "
@@ -101,17 +110,27 @@ def welcome_page():
         st.info("Please respond to the location permission request to proceed.")
         st.stop()
 
-    location = get_geolocation()
+    # Import wrapper here to avoid circular imports or early rendering issues
+    from environment_data.wrapper import get_environmental_context
+    from src.ai_logic import get_expert_analysis
 
-    if location:
-       
-        if 'coords' in location:
-            lat = location['coords'].get('latitude')
-            lon = location['coords'].get('longitude')
-        else:
-            lat = location.get('latitude')
-            lon = location.get('longitude')
+    # Check if we already have data to avoid re-fetching on every rerun
+    if 'env_data' not in st.session_state:
+        with st.spinner("Analyzing your field environment (Weather + Soil)..."):
+            env_data = get_environmental_context()
+            
+            # Simple validation: if we didn't get coordinates, we can't do much
+            if not env_data['location']:
+                 st.warning("Could not detect precise location. Please ensure location is enabled.")
+                 st.stop()
+                 
+            st.session_state.env_data = env_data
+            
+            # Get AI Analysis
+            analysis = get_expert_analysis(env_data['weather'], env_data['soil'])
+            st.session_state.ai_analysis = analysis
 
+<<<<<<< Updated upstream
         if lat is not None and lon is not None:
             st.success(f" Location identified: {lat}, {lon}")
         else:
@@ -151,12 +170,77 @@ def welcome_page():
 
             if submitted:
                 st.info("AI Agent is analyzing your field context...")
+=======
+    # Display Data
+    env_data = st.session_state.env_data
+    analysis = st.session_state.get('ai_analysis', {})
+>>>>>>> Stashed changes
 
+    if env_data.get('location') and env_data['location'].get('latitude'):
+        st.success(f" Location identified: {env_data['location']['latitude']:.4f}, {env_data['location']['longitude']:.4f}")
     else:
-        st.warning(
-            "Waiting for location permission... "
-            "Please check your browser's address bar."
-        )
+        st.warning(" Location identified but coordinates unavailable.")
+
+    # Weather & Soil Context Cards
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader(" Weather Context")
+        w = env_data['weather']
+        st.write(f"**Temp:** {w['temperature_c']}°C")
+        st.write(f"**Humidity:** {w['humidity']}%")
+        if w['weather_alert']:
+            st.error(f" {w['weather_alert']}")
+        else:
+            st.info("No active weather alerts.")
+
+    with col2:
+        st.subheader(" Soil Composition")
+        s = env_data['soil']
+        st.write(f"**Type:** {s['soil_type'] or 'Unknown'}")
+        st.write(f"**Est. pH:** {s['soil_ph'] or 'N/A'}")
+        st.write(f"**Moisture:** {s['soil_moisture'] or 'N/A'}%")
+
+    st.divider()
+    
+    st.subheader("AI Recommendations")
+    
+    if analysis.get('soil_analysis'):
+        st.caption(analysis['soil_analysis'])
+
+    with st.form("farmer_data_form"):
+        st.write("Based on your location and conditions, we recommend:")
+        
+        suggested_crops = analysis.get('suggested_crops', ["Rice", "Wheat", "Maize"])
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            selected_crop = st.selectbox("Select Crop", suggested_crops)
+        with c2:
+            # Allow overriding soil type if sensor data is wrong
+            detected_soil = list([s['soil_type']]) if s['soil_type'] else []
+            all_soils = detected_soil + ["Clay", "Silt", "Sandy", "Black Soil", "Loamy", "Red soil"]
+            # Remove duplicates while preserving order
+            all_soils = list(dict.fromkeys(all_soils))
+            
+            selected_soil = st.selectbox("Confirm Soil Type", all_soils)
+
+        # Allow pH override
+        ph_val = s['soil_ph'] if s['soil_ph'] else 7.0
+        ph_level = st.number_input("Soil pH Level", value=float(ph_val), step=0.1)
+
+        submitted = st.form_submit_button("Launch Dashboard ")
+
+        if submitted:
+            st.session_state.soil_type = selected_soil
+            st.session_state.crop_type = selected_crop
+            st.session_state.ph_level = ph_level
+            st.session_state.weather_alert = env_data['weather']['weather_alert']
+            
+            # Store action plan for dashboard
+            st.session_state.action_plan = analysis.get('action_plan', [])
+            
+            st.session_state.page = "dashboard"
+            st.rerun()
 
     if st.sidebar.button("Logout"):
         st.session_state.authenticated = False
