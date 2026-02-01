@@ -62,20 +62,35 @@ def get_environmental_context() -> Dict[str, Any]:
     soil_data = None
     
     # Step 2 & 3: Fetch weather and soil data (if location available)
+    # Step 2 & 3: Fetch weather and soil data (if location available)
     if location:
-        print("Step 2/3: Fetching weather data...")
-        raw_weather = fetch_weather_data(
-            location["latitude"], 
-            location["longitude"]
-        )
-        weather_data = process_weather_data(raw_weather) if raw_weather else None
-        
-        print("Step 3/3: Fetching soil data...")
-        raw_soil = fetch_soil_data(
-            location["latitude"], 
-            location["longitude"]
-        )
-        soil_data = process_soil_data(raw_soil) if raw_soil else None
+        # Weather
+        try:
+            print("Step 2/3: Fetching weather data...")
+            raw_weather = fetch_weather_data(location["latitude"], location["longitude"])
+            weather_data = process_weather_data(raw_weather) if raw_weather else None
+        except ValueError as e:
+            print(f"Config Error (Weather): {e}. Using MOCK data.")
+            weather_data = {
+                "temperature_c": 26.5,
+                "humidity": 75,
+                "rainfall_mm": 12.5,
+                "weather_alert": "Moderate Rain expected"
+            }
+
+        # Soil
+        try:
+            print("Step 3/3: Fetching soil data...")
+            raw_soil = fetch_soil_data(location["latitude"], location["longitude"])
+            soil_data = process_soil_data(raw_soil) if raw_soil else None
+        except ValueError as e:
+            print(f"Config Error (Soil): {e}. Using MOCK data.")
+            soil_data = {
+                "soil_type": "Loamy",
+                "soil_ph": 6.8,
+                "soil_moisture": 45.0
+            }
+
     else:
         print("Warning: Skipping weather and soil data (no GPS location)")
     
